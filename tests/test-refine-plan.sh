@@ -117,7 +117,15 @@ assert_equals() {
 frontmatter_value() {
     local file="$1"
     local key="$2"
-    sed -n "/^---$/,/^---$/{ /^${key}:[[:space:]]*/{ s/^${key}:[[:space:]]*//p; q; } }" "$file"
+    awk -v key="$key" '
+        /^---$/ { boundary++; next }
+        boundary == 1 && index($0, key ":") == 1 {
+            sub("^[^:]+:[[:space:]]*", "")
+            print
+            exit
+        }
+        boundary >= 2 { exit }
+    ' "$file"
 }
 
 json_first_string_value() {
@@ -139,7 +147,15 @@ trim_string() {
 }
 
 collapse_whitespace() {
-    printf '%s' "$1" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//'
+    printf '%s' "$1" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
+}
+
+lower_string() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+portable_realpath_m() {
+    realpath -m "$1" 2>/dev/null || printf '%s\n' "$1"
 }
 
 VALIDATOR_OUTPUT=""
@@ -530,17 +546,20 @@ scan_reference_comments() {
 }
 
 comment_matches_question() {
-    local text="${1,,}"
+    local text
+    text="$(lower_string "$1")"
     [[ "$text" == *"why"* || "$text" == *"how"* || "$text" == *"what"* || "$text" == *"explain"* || "$text" == *"clarify"* || "$text" == *"unclear"* ]]
 }
 
 comment_matches_change_request() {
-    local text="${1,,}"
+    local text
+    text="$(lower_string "$1")"
     [[ "$text" == *"add"* || "$text" == *"remove"* || "$text" == *"delete"* || "$text" == *"rewrite"* || "$text" == *"restore"* || "$text" == *"rename"* || "$text" == *"split"* || "$text" == *"merge"* || "$text" == *"modify"* ]]
 }
 
 comment_matches_research_request() {
-    local text="${1,,}"
+    local text
+    text="$(lower_string "$1")"
     [[ "$text" == *"investigate"* || "$text" == *"compare"* || "$text" == *"confirm"* || "$text" == *"current behavior"* || "$text" == *"gather evidence"* || "$text" == *"before deciding"* ]]
 }
 
@@ -561,7 +580,7 @@ normalize_alt_language() {
     local raw
     local lower
     raw="$(trim_string "$1")"
-    lower="${raw,,}"
+    lower="$(lower_string "$raw")"
 
     case "$lower" in
         chinese|zh) echo "Chinese|zh|variant" ;;
@@ -1336,10 +1355,11 @@ else
     fail "validate-refine-plan-io: reports new-file mode" "Mode: new file" "missing"
 fi
 
-if echo "$VALIDATOR_OUTPUT" | grep -q "Output target: $(realpath -m "$NEW_FILE_DIR/refined-plan.md")"; then
+EXPECTED_OUTPUT_TARGET="$(portable_realpath_m "$NEW_FILE_DIR/refined-plan.md")"
+if echo "$VALIDATOR_OUTPUT" | grep -q "Output target: $EXPECTED_OUTPUT_TARGET"; then
     pass "validate-refine-plan-io: reports the resolved output target"
 else
-    fail "validate-refine-plan-io: reports the resolved output target" "$(realpath -m "$NEW_FILE_DIR/refined-plan.md")" "$VALIDATOR_OUTPUT"
+    fail "validate-refine-plan-io: reports the resolved output target" "$EXPECTED_OUTPUT_TARGET" "$VALIDATOR_OUTPUT"
 fi
 
 # ========================================

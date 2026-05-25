@@ -1,0 +1,7 @@
+{
+  "profile_id": "compiler",
+  "required_artifact_kinds": ["source_transform_or_pass", "build_script", "test_programs", "compiler_flags", "benchmark_harness", "environment_spec", "reproduce_entrypoint", "results_json"],
+  "optional_artifact_kinds": ["ir_dumps", "assembly_dumps", "profiling_trace"],
+  "not_applicable_artifact_kinds": [],
+  "rules": ["Record compiler, linker, target architecture, and optimization flags."]
+}

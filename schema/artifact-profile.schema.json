@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/artifact-profile.schema.json",
+  "title": "Artifact Profile",
+  "type": "object",
+  "required": ["schema_version", "created_at", "paper_hash", "input_sources", "budget_profile", "unsupported_items", "risk_level", "privacy_mode", "paper_types", "profile_rule_packs", "required_artifacts", "optional_artifacts", "not_applicable_artifacts", "rationale", "source_criteria"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "created_at": {"type": "string"},
+    "paper_hash": {"type": "string"},
+    "input_sources": {"type": "array"},
+    "budget_profile": {"type": "string"},
+    "unsupported_items": {"type": "array"},
+    "risk_level": {"type": "string"},
+    "privacy_mode": {"type": "string"},
+    "paper_types": {"type": "array", "items": {"type": "string"}},
+    "profile_rule_packs": {"type": "array", "items": {"type": "string"}},
+    "required_artifacts": {"type": "array"},
+    "optional_artifacts": {"type": "array"},
+    "not_applicable_artifacts": {"type": "array"},
+    "rationale": {"type": "array"},
+    "source_criteria": {"type": "array"}
+  },
+  "additionalProperties": true
+}

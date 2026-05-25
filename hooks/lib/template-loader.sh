@@ -70,7 +70,8 @@ render_template() {
     # Scans for {{VAR}} patterns and replaces them with values from environment
     # Replaced content goes directly to output without re-scanning
     local awk_exit=0
-    content=$(env "${env_vars[@]}" awk '
+    if [[ ${#env_vars[@]} -gt 0 ]]; then
+        content=$(env "${env_vars[@]}" awk '
     BEGIN {
         # Build lookup table from environment variables with TMPL_VAR_ prefix
         for (name in ENVIRON) {
@@ -126,6 +127,45 @@ render_template() {
 
         print result
     }' <<< "$content") || awk_exit=$?
+    else
+        content=$(awk '
+    BEGIN {
+        for (name in ENVIRON) {
+            if (substr(name, 1, 9) == "TMPL_VAR_") {
+                var_name = substr(name, 10)
+                vars[var_name] = ENVIRON[name]
+            }
+        }
+    }
+    {
+        line = $0
+        result = ""
+        while (length(line) > 0) {
+            open_idx = index(line, "{{")
+            if (open_idx == 0) {
+                result = result line
+                break
+            }
+            result = result substr(line, 1, open_idx - 1)
+            line = substr(line, open_idx)
+            close_idx = index(substr(line, 3), "}}")
+            if (close_idx == 0) {
+                result = result substr(line, 1, 2)
+                line = substr(line, 3)
+                continue
+            }
+            var_name = substr(line, 3, close_idx - 1)
+            placeholder = "{{" var_name "}}"
+            if (var_name in vars) {
+                result = result vars[var_name]
+            } else {
+                result = result placeholder
+            }
+            line = substr(line, length(placeholder) + 1)
+        }
+        print result
+    }' <<< "$content") || awk_exit=$?
+    fi
 
     if [[ $awk_exit -ne 0 ]]; then
         echo "Error: Template rendering failed (awk exit code: $awk_exit)" >&2

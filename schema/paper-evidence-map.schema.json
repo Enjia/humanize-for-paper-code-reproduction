@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/paper-evidence-map.schema.json",
+  "title": "Paper Evidence Map",
+  "type": "object",
+  "required": ["schema_version", "created_at", "paper_hash", "input_sources", "budget_profile", "unsupported_items", "risk_level", "privacy_mode", "claims", "methods", "experiments", "ambiguities"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "created_at": {"type": "string"},
+    "paper_hash": {"type": "string"},
+    "input_sources": {"type": "array"},
+    "budget_profile": {"type": "string"},
+    "unsupported_items": {"type": "array"},
+    "risk_level": {"type": "string"},
+    "privacy_mode": {"type": "string"},
+    "claims": {"type": "array"},
+    "methods": {"type": "array"},
+    "experiments": {"type": "array"},
+    "ambiguities": {"type": "array"}
+  },
+  "additionalProperties": true
+}

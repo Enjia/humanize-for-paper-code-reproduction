@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/paper-decomposition.schema.json",
+  "title": "Paper Decomposition",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "created_at",
+    "paper_hash",
+    "input_sources",
+    "budget_profile",
+    "unsupported_items",
+    "risk_level",
+    "privacy_mode",
+    "modules"
+  ],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "created_at": {"type": "string"},
+    "paper_hash": {"type": "string"},
+    "input_sources": {"type": "array"},
+    "budget_profile": {"type": "string"},
+    "unsupported_items": {"type": "array"},
+    "risk_level": {"type": "string"},
+    "privacy_mode": {"type": "string"},
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "module_id",
+          "module_type",
+          "origin",
+          "origin_source",
+          "title",
+          "paper_evidence",
+          "depends_on",
+          "claims_supported",
+          "reproduction_needs",
+          "expected_artifact_kinds",
+          "verification_targets",
+          "ambiguities",
+          "risk_level"
+        ],
+        "properties": {
+          "module_id": {"type": "string"},
+          "module_type": {
+            "enum": [
+              "algorithm_module",
+              "optimization_module",
+              "data_module",
+              "experiment_design_module",
+              "environment_module",
+              "evaluation_module",
+              "reporting_module",
+              "integration_module"
+            ]
+          },
+          "origin": {
+            "enum": [
+              "paper",
+              "reproduction_contract",
+              "policy",
+              "assumption"
+            ]
+          },
+          "origin_source": {"type": "string"},
+          "title": {"type": "string"},
+          "paper_evidence": {"type": "array"},
+          "depends_on": {"type": "array"},
+          "claims_supported": {"type": "array"},
+          "reproduction_needs": {"type": "array"},
+          "expected_artifact_kinds": {"type": "array"},
+          "verification_targets": {"type": "array"},
+          "ambiguities": {"type": "array"},
+          "risk_level": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

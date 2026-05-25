@@ -252,8 +252,10 @@ fi
 
 if is_goal_tracker_path "$FILE_PATH_LOWER"; then
     GOAL_TRACKER_PATH="$ACTIVE_LOOP_DIR/goal-tracker.md"
-    NORMALIZED_FILE_PATH=$(_normalize_path "$FILE_PATH")
-    NORMALIZED_GOAL_TRACKER_PATH=$(_normalize_path "$GOAL_TRACKER_PATH")
+    NORMALIZED_FILE_PATH=$(canonicalize_path_prefix "$FILE_PATH")
+    NORMALIZED_FILE_PATH="${NORMALIZED_FILE_PATH:-$(_normalize_path "$FILE_PATH")}"
+    NORMALIZED_GOAL_TRACKER_PATH=$(canonicalize_path_prefix "$GOAL_TRACKER_PATH")
+    NORMALIZED_GOAL_TRACKER_PATH="${NORMALIZED_GOAL_TRACKER_PATH:-$(_normalize_path "$GOAL_TRACKER_PATH")}"
 
     if [[ "$NORMALIZED_FILE_PATH" != "$NORMALIZED_GOAL_TRACKER_PATH" ]]; then
         goal_tracker_blocked_message "$CURRENT_ROUND" "$GOAL_TRACKER_PATH" >&2

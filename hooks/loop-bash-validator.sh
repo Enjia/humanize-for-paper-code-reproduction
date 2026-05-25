@@ -559,13 +559,21 @@ fi
 # ========================================
 
 if command_modifies_file "$COMMAND_LOWER" "round-[0-9]+-todos\.md"; then
-    # Require full path to active loop dir to prevent same-basename bypass from different roots
-    ACTIVE_LOOP_DIR_LOWER=$(to_lower "$ACTIVE_LOOP_DIR")
-    ACTIVE_LOOP_DIR_ESCAPED=$(echo "$ACTIVE_LOOP_DIR_LOWER" | sed 's/[\\.*^$[(){}+?|]/\\&/g')
-    if ! echo "$COMMAND_LOWER" | grep -qE "${ACTIVE_LOOP_DIR_ESCAPED}/round-[12]-todos\.md"; then
+    # Require every detected todos target to be allowlisted in the active loop.
+    # Compare paths through is_allowlisted_file so macOS /var and /private/var
+    # spellings are treated consistently without trusting same-basename matches.
+    TODOS_TARGETS=$(printf '%s\n' "$COMMAND" | sed "s/[\"']//g" | tr '[:space:]' '\n' | grep -E 'round-[0-9]+-todos\.md$' || true)
+    if [[ -z "$TODOS_TARGETS" ]]; then
         todos_blocked_message "Bash" >&2
         exit 2
     fi
+    while IFS= read -r TODOS_TARGET; do
+        [[ -z "$TODOS_TARGET" ]] && continue
+        if ! is_allowlisted_file "$TODOS_TARGET" "$ACTIVE_LOOP_DIR"; then
+            todos_blocked_message "Bash" >&2
+            exit 2
+        fi
+    done <<< "$TODOS_TARGETS"
 fi
 
 fi  # End of RLCR-specific checks

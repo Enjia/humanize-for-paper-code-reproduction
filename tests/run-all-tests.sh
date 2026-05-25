@@ -15,6 +15,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SIGNAL_WRAPPER="$PROJECT_ROOT/scripts/run-with-default-signals.py"
 
 # Max parallel test jobs (throttle to avoid resource exhaustion in small CI runners).
 # Override with HUMANIZE_TEST_JOBS=<N>.
@@ -49,6 +51,7 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 BOLD='\033[1m'
 NC='\033[0m'
+esc=$'\033'
 
 echo "========================================"
 echo "Running All Humanize Plugin Tests"
@@ -57,7 +60,7 @@ echo "Parallel jobs: $MAX_JOBS"
 echo ""
 
 # Test suites to run
-TEST_SUITES=(
+DEFAULT_TEST_SUITES=(
     "test-template-loader.sh"
     "test-bash-validator-patterns.sh"
     "test-todo-checker.sh"
@@ -71,6 +74,7 @@ TEST_SUITES=(
     "test-stop-hook-bg-allow.sh"
     "test-error-scenarios.sh"
     "test-ansi-parsing.sh"
+    "test-run-all-tests-progress.sh"
     "test-allowlist-validators.sh"
     "test-finalize-phase.sh"
     "test-codex-review-merge.sh"
@@ -78,9 +82,41 @@ TEST_SUITES=(
     "test-humanize-escape.sh"
     "test-zsh-monitor-safety.sh"
     "test-monitor-runtime.sh"
+    "test-run-with-default-signals.sh"
     "test-monitor-e2e-deletion.sh"
     "test-monitor-e2e-sigint.sh"
     "test-gen-plan.sh"
+    "test-provider-role-routing.sh"
+    "test-agent-runner.sh"
+    "test-runtime-adapter-layer.sh"
+    "test-agent-run-independence.sh"
+    "test-snapshot-manager.sh"
+    "test-paper-repro-plan.sh"
+    "test-gen-paper-repro-plan.sh"
+    "test-paper-extract-and-decompose.sh"
+    "test-paper-repro-planner-agents.sh"
+    "test-paper-type-classification.sh"
+    "test-paper-evidence-map.sh"
+    "test-checkpoint-graph.sh"
+    "test-paper-repro-loop.sh"
+    "test-parent-child-review.sh"
+    "test-reproduce-entrypoint-contract.sh"
+    "test-result-compare-tolerances.sh"
+    "test-memory-lifecycle.sh"
+    "test-memory-workflow.sh"
+    "test-skill-lifecycle.sh"
+    "test-skill-safety.sh"
+    "test-skill-workflow.sh"
+    "test-paper-repro-docs.sh"
+    "test-paper-repro-command-artifacts.sh"
+    "test-paper-input-safety-audit.sh"
+    "test-checkpoint-state-migration.sh"
+    "test-checkpoint-prompt-templates.sh"
+    "test-paper-decomposition.sh"
+    "test-paper-prompt-injection.sh"
+    "test-paper-input-privacy.sh"
+    "test-artifact-profile.sh"
+    "test-paper-repro-dry-run-pipeline.sh"
     "test-refine-plan.sh"
     "test-task-tag-routing.sh"
     "test-config-merge.sh"
@@ -117,6 +153,12 @@ TEST_SUITES=(
     "robustness/test-template-error-robustness.sh"
     "robustness/test-state-transition-robustness.sh"
 )
+
+TEST_SUITES=("${DEFAULT_TEST_SUITES[@]}")
+if [[ -n "${HUMANIZE_TEST_SUITES:-}" ]]; then
+    TEST_SUITES=()
+    IFS=',' read -r -a TEST_SUITES <<< "$HUMANIZE_TEST_SUITES"
+fi
 
 # Tests that must be run with zsh (not bash)
 ZSH_TESTS=(
@@ -159,44 +201,157 @@ format_ms() {
     echo "${s}.${frac}s"
 }
 
-# Launch all test suites in parallel
-declare -A PIDS          # suite -> PID
-declare -A SKIPPED       # suite -> reason
-ACTIVE_PIDS=()
+current_ms() {
+    # BSD date on macOS does not support %N. Seconds precision is enough for
+    # suite ordering and keeps this runner compatible with Bash 3.
+    echo "$(($(date +%s) * 1000))"
+}
+
+SKIPPED_SUITES=()
+SKIPPED_REASONS=()
+RUNNABLE_SUITES=()
 
 for suite in "${TEST_SUITES[@]}"; do
+    suite_path="$SCRIPT_DIR/$suite"
+
+    if [[ ! -f "$suite_path" ]]; then
+        SKIPPED_SUITES+=("$suite")
+        SKIPPED_REASONS+=("not found")
+        continue
+    fi
+
+    if needs_zsh "$suite" && ! command -v zsh &>/dev/null; then
+        SKIPPED_SUITES+=("$suite")
+        SKIPPED_REASONS+=("zsh not available")
+        continue
+    fi
+
+    RUNNABLE_SUITES+=("$suite")
+done
+
+RUN_SUITES=()
+RUN_PIDS=()
+ACTIVE_PIDS=()
+COLLECTED_FLAGS=()
+COMPLETED_SUITES=0
+TOTAL_RUN_SUITES="${#RUNNABLE_SUITES[@]}"
+TOTAL_PASSED=0
+TOTAL_FAILED=0
+FAILED_SUITES=()
+# Sortable file: elapsed_ms<TAB>display_line
+SORT_FILE="$OUTPUT_DIR/sortable.txt"
+: > "$SORT_FILE"
+
+collect_suite_result() {
+    local idx="$1"
+    local suite pid safe_name out_file exit_file time_file exit_code output elapsed_ms elapsed_display
+    local output_stripped passed failed zsh_label line progress_status progress_detail
+
+    if [[ "${COLLECTED_FLAGS[$idx]:-0}" -eq 1 ]]; then
+        return
+    fi
+
+    suite="${RUN_SUITES[$idx]}"
+    pid="${RUN_PIDS[$idx]}"
+    wait "$pid" 2>/dev/null || true
+
+    safe_name="$(echo "$suite" | tr '/' '_')"
+    out_file="$OUTPUT_DIR/${safe_name}.out"
+    exit_file="$OUTPUT_DIR/${safe_name}.exit"
+    time_file="$OUTPUT_DIR/${safe_name}.time"
+
+    exit_code=$(cat "$exit_file" 2>/dev/null || echo "1")
+    output=$(cat "$out_file" 2>/dev/null || echo "")
+    elapsed_ms=$(cat "$time_file" 2>/dev/null || echo "0")
+    elapsed_display=$(format_ms "$elapsed_ms")
+
+    output_stripped=$(echo "$output" | sed "s/${esc}\\[[0-9;]*m//g")
+    passed=$(echo "$output_stripped" | grep -oE 'Passed:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | tail -1 || echo "0")
+    failed=$(echo "$output_stripped" | grep -oE 'Failed:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | tail -1 || echo "0")
+
+    TOTAL_PASSED=$((TOTAL_PASSED + passed))
+    TOTAL_FAILED=$((TOTAL_FAILED + failed))
+
+    if [[ $exit_code -ne 0 ]] || [[ "$failed" -gt 0 ]]; then
+        FAILED_SUITES+=("$suite")
+        line=$(echo -e "${RED}FAILED${NC}: $suite (exit code: $exit_code, failed: $failed, ${elapsed_display})")
+        printf '%d\t%s\n' "$elapsed_ms" "$line" >> "$SORT_FILE"
+        printf '%s\n' "$output" > "$OUTPUT_DIR/${safe_name}.detail"
+        progress_status="FAILED"
+        progress_detail="exit code: $exit_code, failed: $failed"
+    else
+        zsh_label=""
+        needs_zsh "$suite" && zsh_label=" (zsh)"
+        line=$(echo -e "${GREEN}PASSED${NC}: $suite${zsh_label} ($passed tests, ${elapsed_display})")
+        printf '%d\t%s\n' "$elapsed_ms" "$line" >> "$SORT_FILE"
+        progress_status="PASSED"
+        progress_detail="$passed tests"
+    fi
+
+    COMPLETED_SUITES=$((COMPLETED_SUITES + 1))
+    echo "[$COMPLETED_SUITES/$TOTAL_RUN_SUITES] $progress_status: $suite ($progress_detail, ${elapsed_display})"
+    COLLECTED_FLAGS[$idx]=1
+}
+
+collect_finished_suites() {
+    local idx pid
+    for idx in "${!RUN_SUITES[@]}"; do
+        if [[ "${COLLECTED_FLAGS[$idx]:-0}" -eq 1 ]]; then
+            continue
+        fi
+        pid="${RUN_PIDS[$idx]}"
+        if ! kill -0 "$pid" 2>/dev/null; then
+            collect_suite_result "$idx"
+        fi
+    done
+}
+
+wait_for_any_active_pid() {
+    local still_running found_finished pid
+    while true; do
+        still_running=()
+        found_finished=0
+        for pid in "${ACTIVE_PIDS[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                still_running+=("$pid")
+            else
+                found_finished=1
+            fi
+        done
+        ACTIVE_PIDS=("${still_running[@]}")
+        if [[ "$found_finished" -eq 1 ]]; then
+            return
+        fi
+        sleep 1
+    done
+}
+
+for suite in "${RUNNABLE_SUITES[@]}"; do
     suite_path="$SCRIPT_DIR/$suite"
     safe_name="$(echo "$suite" | tr '/' '_')"
     out_file="$OUTPUT_DIR/${safe_name}.out"
     exit_file="$OUTPUT_DIR/${safe_name}.exit"
     time_file="$OUTPUT_DIR/${safe_name}.time"
 
-    if [[ ! -f "$suite_path" ]]; then
-        SKIPPED["$suite"]="not found"
-        continue
-    fi
-
     if needs_zsh "$suite"; then
-        if ! command -v zsh &>/dev/null; then
-            SKIPPED["$suite"]="zsh not available"
-            continue
-        fi
         (
-            t_start=$(date +%s%3N)
-            zsh "$suite_path" >"$out_file" 2>&1
+            t_start=$(current_ms)
+            "$SIGNAL_WRAPPER" zsh "$suite_path" >"$out_file" 2>&1
             echo $? >"$exit_file"
-            echo $(( $(date +%s%3N) - t_start )) >"$time_file"
+            echo $(( $(current_ms) - t_start )) >"$time_file"
         ) &
     else
         (
-            t_start=$(date +%s%3N)
-            "$suite_path" >"$out_file" 2>&1
+            t_start=$(current_ms)
+            "$SIGNAL_WRAPPER" "$suite_path" >"$out_file" 2>&1
             echo $? >"$exit_file"
-            echo $(( $(date +%s%3N) - t_start )) >"$time_file"
+            echo $(( $(current_ms) - t_start )) >"$time_file"
         ) &
     fi
-    PIDS["$suite"]=$!
-    ACTIVE_PIDS+=("${PIDS[$suite]}")
+    RUN_SUITES+=("$suite")
+    RUN_PIDS+=("$!")
+    ACTIVE_PIDS+=("$!")
+    COLLECTED_FLAGS+=("0")
 
     # Throttle background jobs
     while [[ "${#ACTIVE_PIDS[@]}" -ge "$MAX_JOBS" ]]; do
@@ -210,66 +365,24 @@ for suite in "${TEST_SUITES[@]}"; do
                 fi
             done
             ACTIVE_PIDS=("${still_running[@]}")
+            collect_finished_suites
         else
-            # Fallback: wait for the oldest PID (less efficient but portable in older bash)
-            wait "${ACTIVE_PIDS[0]}" 2>/dev/null || true
-            ACTIVE_PIDS=("${ACTIVE_PIDS[@]:1}")
+            # Bash 3 fallback: poll until any active PID exits, then collect it.
+            wait_for_any_active_pid
+            collect_finished_suites
         fi
     done
 done
 
-# Wait for all and collect results
-TOTAL_PASSED=0
-TOTAL_FAILED=0
-FAILED_SUITES=()
-# Sortable file: elapsed_ms<TAB>display_line
-SORT_FILE="$OUTPUT_DIR/sortable.txt"
-: > "$SORT_FILE"
+collect_finished_suites
 
-esc=$'\033'
-for suite in "${TEST_SUITES[@]}"; do
-    [[ -n "${SKIPPED[$suite]+x}" ]] && continue
-
-    pid="${PIDS[$suite]}"
-    wait "$pid" 2>/dev/null
-
-    safe_name="$(echo "$suite" | tr '/' '_')"
-    out_file="$OUTPUT_DIR/${safe_name}.out"
-    exit_file="$OUTPUT_DIR/${safe_name}.exit"
-    time_file="$OUTPUT_DIR/${safe_name}.time"
-
-    exit_code=$(cat "$exit_file" 2>/dev/null || echo "1")
-    output=$(cat "$out_file" 2>/dev/null || echo "")
-    elapsed_ms=$(cat "$time_file" 2>/dev/null || echo "0")
-    elapsed_display=$(format_ms "$elapsed_ms")
-
-    # Strip ANSI escape codes and extract pass/fail counts
-    output_stripped=$(echo "$output" | sed "s/${esc}\\[[0-9;]*m//g")
-    passed=$(echo "$output_stripped" | grep -oE 'Passed:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | tail -1 || echo "0")
-    failed=$(echo "$output_stripped" | grep -oE 'Failed:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | tail -1 || echo "0")
-
-    TOTAL_PASSED=$((TOTAL_PASSED + passed))
-    TOTAL_FAILED=$((TOTAL_FAILED + failed))
-
-    if [[ $exit_code -ne 0 ]] || [[ "$failed" -gt 0 ]]; then
-        FAILED_SUITES+=("$suite")
-        line=$(echo -e "${RED}FAILED${NC}: $suite (exit code: $exit_code, failed: $failed, ${elapsed_display})")
-        printf '%d\t%s\n' "$elapsed_ms" "$line" >> "$SORT_FILE"
-        # Preserve the full suite log so CI surfaces the exact failing assertion.
-        printf '%s\n' "$output" > "$OUTPUT_DIR/${safe_name}.detail"
-    else
-        zsh_label=""
-        needs_zsh "$suite" && zsh_label=" (zsh)"
-        line=$(echo -e "${GREEN}PASSED${NC}: $suite${zsh_label} ($passed tests, ${elapsed_display})")
-        printf '%d\t%s\n' "$elapsed_ms" "$line" >> "$SORT_FILE"
-    fi
+for i in "${!RUN_SUITES[@]}"; do
+    collect_suite_result "$i"
 done
 
 # Print skipped suites first
-for suite in "${TEST_SUITES[@]}"; do
-    if [[ -n "${SKIPPED[$suite]+x}" ]]; then
-        echo -e "${YELLOW}SKIP${NC}: $suite (${SKIPPED[$suite]})"
-    fi
+for i in "${!SKIPPED_SUITES[@]}"; do
+    echo -e "${YELLOW}SKIP${NC}: ${SKIPPED_SUITES[$i]} (${SKIPPED_REASONS[$i]})"
 done
 
 # Print results sorted by elapsed time (fastest first)

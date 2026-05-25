@@ -1,0 +1,7 @@
+{
+  "profile_id": "data-analysis",
+  "required_artifact_kinds": ["data_acquisition", "data_cleaning", "feature_extraction", "statistical_test", "figure_or_table_generation", "data_provenance", "environment_spec", "reproduce_entrypoint", "results_json"],
+  "optional_artifact_kinds": ["raw_data_manifest", "notebook"],
+  "not_applicable_artifact_kinds": [],
+  "rules": ["Record data provenance, license, privacy, and cleaning decisions."]
+}

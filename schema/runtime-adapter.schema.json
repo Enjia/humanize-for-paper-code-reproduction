@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/runtime-adapter.schema.json",
+  "title": "Runtime Adapter",
+  "type": "object",
+  "required": ["adapter_id", "adapter_kind", "capabilities", "provider_roles"],
+  "properties": {
+    "adapter_id": {"type": "string"},
+    "adapter_kind": {"type": "string"},
+    "capabilities": {"type": "array", "items": {"type": "string"}},
+    "provider_roles": {"type": "object"}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/skill-entry.schema.json",
+  "title": "Skill Entry",
+  "type": "object",
+  "required": ["skill_id", "state", "path", "provenance", "validation_commands", "created_at"],
+  "properties": {
+    "skill_id": {"type": "string"},
+    "state": {"enum": ["candidate", "validated", "active", "deprecated", "blocked"]},
+    "path": {"type": "string"},
+    "provenance": {"type": "object"},
+    "validation_commands": {"type": "array"},
+    "created_at": {"type": "string"}
+  },
+  "additionalProperties": true
+}

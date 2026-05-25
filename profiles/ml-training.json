@@ -1,0 +1,7 @@
+{
+  "profile_id": "ml-training",
+  "required_artifact_kinds": ["dataset_preparation", "training_or_finetuning", "evaluation_script", "result_table", "environment_spec", "reproduce_entrypoint", "results_json"],
+  "optional_artifact_kinds": ["pretrained_weights", "model_checkpoints", "sweep_config"],
+  "not_applicable_artifact_kinds": [],
+  "rules": ["Require training artifacts only when paper evidence includes training or fine-tuning claims."]
+}

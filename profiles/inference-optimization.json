@@ -1,0 +1,7 @@
+{
+  "profile_id": "inference-optimization",
+  "required_artifact_kinds": ["benchmark_harness", "runtime_config", "hardware_metadata", "profiling_or_measurement_script", "latency_throughput_memory_results", "environment_spec", "reproduce_entrypoint", "results_json"],
+  "optional_artifact_kinds": ["kernel_source", "trace_output", "model_fixture"],
+  "not_applicable_artifact_kinds": ["training_script"],
+  "rules": ["Do not require training artifacts unless evidence includes training-dependent claims."]
+}

@@ -1,0 +1,7 @@
+{
+  "profile_id": "algorithm-experiment",
+  "required_artifact_kinds": ["reference_implementation", "synthetic_or_benchmark_instances", "correctness_tests", "complexity_probe", "figure_or_table_generation", "environment_spec", "reproduce_entrypoint", "results_json"],
+  "optional_artifact_kinds": ["random_instance_generator"],
+  "not_applicable_artifact_kinds": ["training_script"],
+  "rules": ["Prioritize correctness tests before performance probes."]
+}

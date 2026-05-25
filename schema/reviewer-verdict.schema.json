@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/reviewer-verdict.schema.json",
+  "title": "Reviewer Verdict",
+  "type": "object",
+  "required": ["reviewer_id", "reviewer_run_id", "checkpoint_id", "module_findings", "criterion_findings", "global_findings", "artifact_findings", "command_findings", "reasonable_findings", "conflicting_findings", "required_actions", "verdict"],
+  "properties": {
+    "reviewer_id": {"type": "string"},
+    "reviewer_run_id": {"type": "string"},
+    "checkpoint_id": {"type": "string"},
+    "module_findings": {"type": "array"},
+    "criterion_findings": {"type": "array"},
+    "global_findings": {"type": "array"},
+    "artifact_findings": {"type": "array"},
+    "command_findings": {"type": "array"},
+    "reasonable_findings": {"type": "array"},
+    "conflicting_findings": {"type": "array"},
+    "required_actions": {"type": "array"},
+    "verdict": {"enum": ["pass", "pass_with_notes", "fail", "blocked"]}
+  },
+  "additionalProperties": true
+}

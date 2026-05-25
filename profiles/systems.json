@@ -1,0 +1,7 @@
+{
+  "profile_id": "systems",
+  "required_artifact_kinds": ["build_script", "benchmark_workload", "configuration_flags", "platform_metadata", "result_extraction", "environment_spec", "reproduce_entrypoint", "results_json"],
+  "optional_artifact_kinds": ["profiling_trace", "distributed_config"],
+  "not_applicable_artifact_kinds": [],
+  "rules": ["Record non-portable infrastructure requirements as artifact notes."]
+}

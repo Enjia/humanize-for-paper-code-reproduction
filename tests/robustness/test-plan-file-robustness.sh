@@ -168,6 +168,12 @@ count_content_lines() {
     echo "$count"
 }
 
+wc_count() {
+    local flag="$1"
+    local file="$2"
+    wc "$flag" < "$file" 2>/dev/null | tr -d '[:space:]'
+}
+
 # ========================================
 # Positive Tests - Valid Plan Files (via production)
 # ========================================
@@ -197,7 +203,7 @@ Implement feature X.
 EOF
 
 if test_plan_validation "valid-plan.md"; then
-    LINE_COUNT=$(wc -l < "$TEST_DIR/valid-plan.md")
+    LINE_COUNT=$(wc_count -l "$TEST_DIR/valid-plan.md")
     pass "Production accepts valid plan ($LINE_COUNT lines)"
 else
     fail "Valid plan acceptance" "accepted" "rejected"
@@ -243,7 +249,7 @@ echo "Test 3: Production accepts standard file sizes (5KB)"
     done
 } > "$TEST_DIR/standard-size.md"
 
-SIZE=$(wc -c < "$TEST_DIR/standard-size.md")
+SIZE=$(wc_count -c "$TEST_DIR/standard-size.md")
 if test_plan_validation "standard-size.md"; then
     pass "Production accepts standard size file ($SIZE bytes)"
 else
@@ -337,7 +343,7 @@ echo "Test 7: Large plan file (1MB+) accepted by production"
     done
 } > "$TEST_DIR/large-plan.md"
 
-SIZE=$(wc -c < "$TEST_DIR/large-plan.md")
+SIZE=$(wc_count -c "$TEST_DIR/large-plan.md")
 if [[ "$SIZE" -gt "1000000" ]]; then
     # Test production validation handles large files
     START=$(date +%s%N)
@@ -359,7 +365,7 @@ echo "Test 8: Production accepts mixed line endings (CRLF/LF)"
 printf "# Plan\r\n## Goal\r\nImplement feature.\r\n\nTask one\nTask two\nTask three\n" > "$TEST_DIR/mixed-endings.md"
 
 if test_plan_validation "mixed-endings.md"; then
-    LINE_COUNT=$(wc -l < "$TEST_DIR/mixed-endings.md")
+    LINE_COUNT=$(wc_count -l "$TEST_DIR/mixed-endings.md")
     pass "Production accepts mixed endings plan ($LINE_COUNT lines)"
 else
     fail "Mixed endings acceptance" "accepted" "rejected"
@@ -380,7 +386,7 @@ echo "" >> "$TEST_DIR/binary-plan.md"
 echo "Content after binary." >> "$TEST_DIR/binary-plan.md"
 
 # wc should still work
-LINE_COUNT=$(wc -l < "$TEST_DIR/binary-plan.md" 2>/dev/null || echo "error")
+LINE_COUNT=$(wc_count -l "$TEST_DIR/binary-plan.md" || echo "error")
 if [[ "$LINE_COUNT" != "error" ]] && [[ "$LINE_COUNT" -ge "5" ]]; then
     pass "Binary content handled ($LINE_COUNT lines)"
 else
@@ -399,7 +405,7 @@ echo "Test 10: Plan file with very long lines"
     echo "Another normal line."
 } > "$TEST_DIR/long-lines.md"
 
-LINE_COUNT=$(wc -l < "$TEST_DIR/long-lines.md")
+LINE_COUNT=$(wc_count -l "$TEST_DIR/long-lines.md")
 if [[ "$LINE_COUNT" == "5" ]]; then
     pass "Long lines handled correctly ($LINE_COUNT lines)"
 else
@@ -517,7 +523,7 @@ echo "Test 18: File with null bytes"
 printf "# Plan\nContent\x00More content\nEnd\n" > "$TEST_DIR/null-bytes.md"
 
 # Should be able to get line count even with nulls
-LINE_COUNT=$(wc -l < "$TEST_DIR/null-bytes.md" 2>/dev/null || echo "error")
+LINE_COUNT=$(wc_count -l "$TEST_DIR/null-bytes.md" || echo "error")
 if [[ "$LINE_COUNT" != "error" ]]; then
     pass "Null bytes handled (line count: $LINE_COUNT)"
 else

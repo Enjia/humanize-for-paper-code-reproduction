@@ -1,0 +1,7 @@
+{
+  "profile_id": "numerical-simulation",
+  "required_artifact_kinds": ["solver_implementation", "input_deck", "precision_settings", "convergence_test", "reference_or_analytic_comparison", "environment_spec", "reproduce_entrypoint", "results_json"],
+  "optional_artifact_kinds": ["mesh_files", "visualization_script"],
+  "not_applicable_artifact_kinds": [],
+  "rules": ["Record solver settings, tolerances, and nondeterminism sources."]
+}

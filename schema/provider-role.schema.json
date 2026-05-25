@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/provider-role.schema.json",
+  "title": "Provider Role",
+  "type": "object",
+  "required": ["provider", "model", "effort", "timeout_seconds", "sandbox_mode", "write_policy", "network_policy", "workspace_root"],
+  "properties": {
+    "provider": {"type": "string"},
+    "model": {"type": "string"},
+    "effort": {"type": "string"},
+    "timeout_seconds": {"type": "integer", "minimum": 1},
+    "sandbox_mode": {"type": "string"},
+    "write_policy": {"type": "string"},
+    "network_policy": {"type": "string"},
+    "workspace_root": {"type": "string"}
+  },
+  "additionalProperties": true
+}

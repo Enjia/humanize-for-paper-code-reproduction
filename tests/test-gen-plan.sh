@@ -39,6 +39,20 @@ fail() {
     TESTS_FAILED=$((TESTS_FAILED + 1))
 }
 
+frontmatter_value() {
+    local file="$1"
+    local key="$2"
+    awk -v key="$key" '
+        /^---$/ { boundary++; next }
+        boundary == 1 && index($0, key ":") == 1 {
+            sub("^[^:]+:[[:space:]]*", "")
+            print
+            exit
+        }
+        boundary >= 2 { exit }
+    ' "$file"
+}
+
 echo "========================================"
 echo "Testing gen-plan Command Structure"
 echo "========================================"
@@ -69,7 +83,7 @@ fi
 echo ""
 echo "PT-2: Command description validation"
 if [[ -f "$GEN_PLAN_CMD" ]]; then
-    DESC=$(sed -n '/^---$/,/^---$/{ /^description:/{ s/^description:[[:space:]]*//p; q; } }' "$GEN_PLAN_CMD")
+    DESC=$(frontmatter_value "$GEN_PLAN_CMD" "description")
     if [[ -n "$DESC" ]]; then
         pass "gen-plan.md has description: ${DESC:0:50}..."
     else
@@ -252,7 +266,7 @@ fi
 echo ""
 echo "PT-6: Agent name validation"
 if [[ -f "$RELEVANCE_AGENT" ]]; then
-    NAME=$(sed -n '/^---$/,/^---$/{ /^name:/{ s/^name:[[:space:]]*//p; q; } }' "$RELEVANCE_AGENT")
+    NAME=$(frontmatter_value "$RELEVANCE_AGENT" "name")
     if [[ "$NAME" == "draft-relevance-checker" ]]; then
         pass "draft-relevance-checker agent has correct name field"
     else
@@ -266,7 +280,7 @@ fi
 echo ""
 echo "PT-7: Agent model specification validation"
 if [[ -f "$RELEVANCE_AGENT" ]]; then
-    MODEL=$(sed -n '/^---$/,/^---$/{ /^model:/{ s/^model:[[:space:]]*//p; q; } }' "$RELEVANCE_AGENT")
+    MODEL=$(frontmatter_value "$RELEVANCE_AGENT" "model")
     if [[ "$MODEL" == "haiku" ]]; then
         pass "draft-relevance-checker agent uses haiku model"
     else
@@ -521,7 +535,7 @@ fi
 
 # Verify agent has valid model
 if [[ -f "$RELEVANCE_AGENT" ]]; then
-    MODEL=$(sed -n '/^---$/,/^---$/{ /^model:/{ s/^model:[[:space:]]*//p; q; } }' "$RELEVANCE_AGENT")
+    MODEL=$(frontmatter_value "$RELEVANCE_AGENT" "model")
     if [[ -n "$MODEL" ]]; then
         if validate_model_name "$MODEL"; then
             pass "NT-6c: draft-relevance-checker has valid model: $MODEL"

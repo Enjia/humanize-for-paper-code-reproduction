@@ -305,6 +305,31 @@ resolve_any_state_file() {
     echo "${terminal_state:-}"
 }
 
+state_frontmatter_value() {
+    local state_file="$1"
+    local key="$2"
+
+    awk -v key="$key" '
+        /^---$/ {
+            markers += 1
+            next
+        }
+        markers == 1 {
+            prefix = key ":"
+            if (index($0, prefix) == 1) {
+                value = substr($0, length(prefix) + 1)
+                sub(/^[[:space:]]*/, "", value)
+                sub(/[[:space:]]*$/, "", value)
+                print value
+                exit
+            }
+        }
+        markers >= 2 {
+            exit
+        }
+    ' "$state_file" 2>/dev/null
+}
+
 # Find the most recent active loop directory matching optional session_id filter
 #
 # Without session_id filter: only checks the single newest directory.
@@ -379,7 +404,7 @@ find_active_loop() {
         fi
 
         local stored_session_id
-        stored_session_id=$(sed -n '/^---$/,/^---$/{ /^'"${FIELD_SESSION_ID}"':/{ s/'"${FIELD_SESSION_ID}"': *//; p; } }' "$any_state" 2>/dev/null | tr -d ' ')
+        stored_session_id=$(state_frontmatter_value "$any_state" "$FIELD_SESSION_ID" | tr -d ' ')
 
         # Empty stored session_id matches any session (backward compat).
         if [[ -z "$stored_session_id" ]] || [[ "$stored_session_id" == "$filter_session_id" ]]; then
@@ -809,8 +834,12 @@ extract_round_number() {
     local filename_lower
     filename_lower=$(to_lower "$filename")
 
-    # Use sed for portable regex extraction (works in both bash and zsh)
-    echo "$filename_lower" | sed -n 's/.*round-\([0-9][0-9]*\)-\(summary\|prompt\|todos\|contract\)\.md$/\1/p'
+    # Use only basic sed constructs; BSD sed does not support BRE alternation.
+    echo "$filename_lower" | sed -n \
+        -e 's/.*round-\([0-9][0-9]*\)-summary\.md$/\1/p' \
+        -e 's/.*round-\([0-9][0-9]*\)-prompt\.md$/\1/p' \
+        -e 's/.*round-\([0-9][0-9]*\)-todos\.md$/\1/p' \
+        -e 's/.*round-\([0-9][0-9]*\)-contract\.md$/\1/p'
 }
 
 # Check if a file is in the allowlist for the active loop
@@ -819,6 +848,12 @@ extract_round_number() {
 is_allowlisted_file() {
     local file_path="$1"
     local active_loop_dir="$2"
+    local file_path_canonical
+    local allowed_path
+    local allowed_path_canonical
+
+    file_path_canonical=$(canonicalize_path_prefix "$file_path")
+    file_path_canonical="${file_path_canonical:-$(_normalize_path "$file_path")}"
 
     local allowlist=(
         "round-1-todos.md"
@@ -828,7 +863,10 @@ is_allowlisted_file() {
     )
 
     for allowed in "${allowlist[@]}"; do
-        if [[ "$file_path" == "$active_loop_dir/$allowed" ]]; then
+        allowed_path="$active_loop_dir/$allowed"
+        allowed_path_canonical=$(canonicalize_path_prefix "$allowed_path")
+        allowed_path_canonical="${allowed_path_canonical:-$(_normalize_path "$allowed_path")}"
+        if [[ "$file_path_canonical" == "$allowed_path_canonical" ]]; then
             return 0
         fi
     done
@@ -1522,7 +1560,7 @@ Use Write or Edit on: {{CORRECT_PATH}}
 
 Rules:
 - Keep the **IMMUTABLE SECTION** unchanged
-- Do not modify `goal-tracker.md` via Bash
+- Do not modify goal-tracker.md via Bash
 - Do not write to an old loop session's tracker"
 
     load_and_render_safe "$TEMPLATE_DIR" "block/goal-tracker-modification.md" "$fallback" \

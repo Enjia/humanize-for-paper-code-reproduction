@@ -143,8 +143,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Join question parts into a single string
-QUESTION="${QUESTION_PARTS[*]}"
+# Join question parts into a single string. Bash 3 with `set -u` treats empty
+# arrays as unbound, so guard the empty-question path explicitly.
+if [[ ${#QUESTION_PARTS[@]} -gt 0 ]]; then
+    QUESTION="${QUESTION_PARTS[*]}"
+else
+    QUESTION=""
+fi
 
 # ========================================
 # Validate Prerequisites

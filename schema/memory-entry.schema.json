@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://humanize.local/schema/memory-entry.schema.json",
+  "title": "Memory Entry",
+  "type": "object",
+  "required": ["memory_id", "memory_type", "redaction_status", "source_events", "tags", "created_at"],
+  "properties": {
+    "memory_id": {"type": "string"},
+    "memory_type": {"enum": ["episodic", "semantic", "procedural"]},
+    "redaction_status": {"enum": ["redacted", "not_needed", "blocked"]},
+    "source_events": {"type": "array"},
+    "module_ids": {"type": "array"},
+    "criterion_ids": {"type": "array"},
+    "checkpoint_ids": {"type": "array"},
+    "tags": {"type": "array"},
+    "created_at": {"type": "string"}
+  },
+  "additionalProperties": true
+}
